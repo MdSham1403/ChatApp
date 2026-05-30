@@ -9,6 +9,7 @@ from alembic import context
 # 1. Import your central configuration and the shared Base
 from app.config import settings
 from app.db.database import Base  # Your central SQLAlchemy declarative base
+from app.models import user, message, reaction, media
 
 # 2. Import your models explicitly here so they register with the central Base metadata!
 from app.models import user, message, media 
