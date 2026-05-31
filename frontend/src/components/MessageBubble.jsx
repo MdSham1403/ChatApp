@@ -15,7 +15,15 @@ function formatSize(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
-export default function MessageBubble({ msg, isMe, onReact, onReply, onDelete }) {
+export default function MessageBubble({ 
+  msg, 
+  isMe, 
+  sentColor, 
+  receivedColor, 
+  onReact, 
+  onReply, 
+  onDelete 
+}) {
   const [showEmoji, setShowEmoji] = useState(false)
   const [imgOpen, setImgOpen] = useState(false)
 
@@ -62,12 +70,14 @@ export default function MessageBubble({ msg, isMe, onReact, onReply, onDelete })
             </div>
           )}
 
-          {/* Bubble */}
-          <div className={`rounded-2xl text-sm leading-relaxed overflow-hidden
-            ${isMe
-              ? 'bg-indigo-600 text-white rounded-br-sm'
-              : 'bg-white border border-gray-100 text-gray-800 rounded-bl-sm shadow-sm'
-            }`}
+          {/* Bubble — Dynamically Styled via Step 10 */}
+          <div 
+            className={`rounded-2xl text-sm leading-relaxed overflow-hidden
+              ${isMe ? 'rounded-br-sm' : 'rounded-bl-sm shadow-sm'}`}
+            style={isMe
+              ? { background: sentColor || '#4f46e5', color: '#fff' }
+              : { background: receivedColor || '#ffffff', border: '1px solid #f3f4f6', color: '#1f2937' }
+            }
           >
             {/* ── Image ─────────────────────────────────────────────────── */}
             {msg.message_type === 'image' && msg.media_url && (
@@ -136,7 +146,7 @@ export default function MessageBubble({ msg, isMe, onReact, onReply, onDelete })
 
             {/* ── Timestamp + tick ──────────────────────────────────────── */}
             <div className={`flex items-center gap-1 justify-end px-3.5 pb-2 mt-0.5
-              ${isMe ? 'text-indigo-200' : 'text-gray-400'}`}
+              ${isMe ? 'text-white/80' : 'text-gray-400'}`}
             >
               <span className="text-[10px]">
                 {new Date(msg.created_at).toLocaleTimeString([], {

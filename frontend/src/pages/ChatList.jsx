@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import useAuthStore from '../store/authStore'
 import useChatStore from '../store/chatStore'
 import { useWebSocket } from '../hooks/useWebSocket'
@@ -12,6 +12,7 @@ export default function ChatList() {
   const [search, setSearch] = useState('')
   const [results, setResults] = useState([])
 
+  // ── WS handler ───────────────────────────────────────────────────────────
   const handleWS = useCallback((evt) => {
     if (evt.type === 'message')  store.addMessage(evt.payload)
     if (evt.type === 'typing')   store.setTyping(evt.payload.from, evt.payload.is_typing)
@@ -21,6 +22,7 @@ export default function ChatList() {
 
   useWebSocket(handleWS)
 
+  // ── Search Action Handler ────────────────────────────────────────────────
   const handleSearch = async (e) => {
     const q = e.target.value
     setSearch(q)
@@ -33,14 +35,25 @@ export default function ChatList() {
     <div className="flex flex-col h-screen bg-white max-w-md mx-auto
       border-x border-gray-100">
 
-      {/* Header */}
+      {/* Header — Custom Settings Gear Embedded */}
       <div className="px-4 pt-6 pb-3">
         <div className="flex items-center justify-between mb-4">
           <h1 className="text-xl font-semibold text-gray-900">Messages</h1>
-          <button onClick={logout}
-            className="text-sm text-gray-400 hover:text-red-500">
-            Sign out
-          </button>
+          <div className="flex items-center gap-3">
+            <Link 
+              to="/settings"
+              className="text-gray-400 hover:text-gray-600 text-lg transition-colors"
+              title="Settings"
+            >
+              ⚙️
+            </Link>
+            <button 
+              onClick={logout}
+              className="text-sm text-gray-400 hover:text-red-500 transition-colors"
+            >
+              Sign out
+            </button>
+          </div>
         </div>
         <input
           value={search}
@@ -51,7 +64,7 @@ export default function ChatList() {
         />
       </div>
 
-      {/* Search results */}
+      {/* Search results workspace */}
       {results.length > 0 && (
         <div className="px-4 pb-2">
           <p className="text-xs text-gray-400 mb-2 uppercase tracking-wide">
@@ -75,7 +88,7 @@ export default function ChatList() {
         </div>
       )}
 
-      {/* Empty state */}
+      {/* Default Chat Feed View / Empty state */}
       {results.length === 0 && search.length === 0 && (
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center text-gray-400">
