@@ -12,14 +12,26 @@ from app.models.user import User
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
-@router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/register", response_model=TokenResponse, status_code=201)
 async def register(body: UserRegister, db: AsyncSession = Depends(get_db)):
+    print(body.model_dump())
+
+    # ADD these two checks
+    if len(body.password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+    if len(body.password) > 1024:
+        raise HTTPException(status_code=400, detail="Password too long")
+
     try:
         user = await auth_service.register_user(
-            db, body.email, body.username, body.password, body.display_name
+            db,
+            body.email,
+            body.username,
+            body.password,
+            body.display_name
         )
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e))
 
     return TokenResponse(
         access_token=auth_service.create_access_token(str(user.id)),

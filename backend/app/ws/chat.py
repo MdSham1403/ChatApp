@@ -75,15 +75,26 @@ async def chat_ws(websocket: WebSocket, db: AsyncSession = Depends(get_db)):
                 }
                 # Echo to sender
                 await manager.send(user_id, frame)
-                # Deliver to receiver
-                receiver_id = str(pl["receiver_id"])
-                if manager.is_connected(receiver_id):
-                    await manager.send(receiver_id, frame)
+                
+                # Deliver to receiver / Wire push into WebSocket send
+                receiver_id_str = str(pl["receiver_id"])
+                if manager.is_connected(receiver_id_str):
+                    await manager.send(receiver_id_str, frame)
                     await message_service.mark_delivered(db, msg.id)
                     await manager.send(user_id, {
                         "type": "status",
                         "payload": {"message_id": str(msg.id), "status": "delivered"},
                     })
+                else:
+                    # User is offline — send push notification
+                    from app.services.push_service import notify_user
+                    await notify_user(
+                        db,
+                        user_id = receiver_id_str,
+                        title   = user.display_name or user.username,
+                        body    = pl.get("body", "Sent a message")[:80],
+                        data    = {"sender_id": user_id, "message_id": str(msg.id)},
+                    )
 
             # ── Mark read ────────────────────────────────────────────────────
             elif evt == "read":
@@ -161,5 +172,3 @@ async def chat_ws(websocket: WebSocket, db: AsyncSession = Depends(get_db)):
         heartbeat_task.cancel()
         await manager.disconnect(user_id, websocket)
         await redis_service.set_offline(user_id)
-        # Notify all open conversations that this user went offline
-        # (handled client-side via absence of online event)

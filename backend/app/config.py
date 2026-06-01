@@ -11,9 +11,14 @@ class Settings(BaseSettings):
     CLOUDINARY_API_KEY: str
     CLOUDINARY_API_SECRET: str
     APP_NAME: str = "ChatApp"
-    FRONTEND_URL: str = "http://localhost:5173"
+    VAPID_PRIVATE_KEY: str = ""
+    VAPID_PUBLIC_KEY: str = ""
+    VAPID_SUBJECT: str = "mailto:mdsham1403@gmail.com"
+    FRONTEND_URL: str = "http://localhost:5173/"
 
     class Config:
         env_file = ".env"
+        # ── ADD THIS LINE TO FIX THE EXTRA INPUT ERROR ────────────────────────
+        extra = "ignore"
 
 settings = Settings()

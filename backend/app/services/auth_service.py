@@ -1,21 +1,27 @@
+import bcrypt
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from passlib.context import CryptContext
 from jose import jwt, JWTError
 from datetime import datetime, timedelta, timezone
 import pyotp, qrcode, base64, io
 from app.models.user import User
 from app.config import settings
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-# ── Password helpers ──────────────────────────────────────────────────────────
+# ── Password helpers (Pure Native Bcrypt - No Passlib!) ───────────────────────
 
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    """Hashes password cleanly using native bcrypt."""
+    password_bytes = password.encode('utf-8')
+    salt = bcrypt.gensalt()
+    hashed = bcrypt.hashpw(password_bytes, salt)
+    return hashed.decode('utf-8')
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return pwd_context.verify(plain, hashed)
+    """Verifies plain password matches the database string hash securely."""
+    try:
+        return bcrypt.checkpw(plain.encode('utf-8'), hashed.encode('utf-8'))
+    except Exception:
+        return False
 
 # ── JWT helpers ───────────────────────────────────────────────────────────────
 
@@ -65,23 +71,30 @@ async def get_user_by_username(db: AsyncSession, username: str) -> User | None:
 
 # ── Register ──────────────────────────────────────────────────────────────────
 
-async def register_user(db: AsyncSession, email: str, username: str,
-                        password: str, display_name: str | None) -> User:
-    if await get_user_by_email(db, email):
-        raise ValueError("Email already registered")
-    if await get_user_by_username(db, username):
-        raise ValueError("Username already taken")
+async def register_user(db, email, username, password, display_name):
+    try:
+        if await get_user_by_email(db, email):
+            raise ValueError("Email already registered")
 
-    user = User(
-        email=email,
-        username=username,
-        hashed_password=hash_password(password),
-        display_name=display_name or username,
-    )
-    db.add(user)
-    await db.commit()
-    await db.refresh(user)
-    return user
+        if await get_user_by_username(db, username):
+            raise ValueError("Username already taken")
+
+        user = User(
+            email=email,
+            username=username,
+            hashed_password=hash_password(password),
+            display_name=display_name or username,
+        )
+
+        db.add(user)
+        await db.commit()
+        await db.refresh(user)
+
+        return user
+
+    except Exception as e:
+        print("REGISTER ERROR:", repr(e))
+        raise
 
 # ── Login ─────────────────────────────────────────────────────────────────────
 

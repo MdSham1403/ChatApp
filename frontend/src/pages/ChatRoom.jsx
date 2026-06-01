@@ -9,6 +9,7 @@ import api from '../utils/api'
 import MediaUpload from '../components/MediaUpload'
 import VoiceRecorder from '../components/VoiceRecorder'
 import usePrefsStore from '../store/prefsStore'
+import { dequeue, removeFromQueue } from '../hooks/useOfflineQueue'
 import {
   encryptMessage,
   decryptMessage,
@@ -66,7 +67,7 @@ export default function ChatRoom() {
     }
   }, [])
 
-  // ── Build dynamic styles from user preferences (Step 9) ──────────────────
+  // ── Build dynamic styles from user preferences ───────────────────────────
   const fontClass = prefs.font_size === 'sm' ? 'text-xs'
                   : prefs.font_size === 'lg' ? 'text-base'
                   : 'text-sm'
@@ -100,24 +101,30 @@ export default function ChatRoom() {
 
   const { send } = useWebSocket(handleWS)
 
-  // ── Load data (Integrated with Pre-Fetched Keys) ─────────────────────────
+  // ── Load data (Guaranteed Sequential Order Resolution) ───────────────────
   useEffect(() => {
     store.setActiveChat(userId)
+    
+    // Fetch profile data concurrently
     api.get(`/users/${userId}`).then((r) => setOtherUser(r.data))
     
-    // Pre-fetch public keys for decryption workspace routines
-    getPublicKey(userId).then(() => {
-      // Fetch public key for yourself to decrypt inbound/outbound copies securely
-      if (me?.id) getPublicKey(me.id)
+    const initializeChatContext = async () => {
+      // 1. Resolve keys first in parallel so cache is fully populated
+      const keyRequests = [getPublicKey(userId)]
+      if (me?.id) keyRequests.push(getPublicKey(me.id))
+      await Promise.all(keyRequests)
+
+      // 2. Only fetch and decode messages after keys exist in cache
+      const { data: rawHistory } = await api.get(`/messages/${userId}`)
+      const decryptedList = rawHistory.map(msg => decryptBody(msg))
       
-      return api.get(`/messages/${userId}`)
-    }).then((r) => {
-      const decryptedList = r.data.map(msg => decryptBody(msg))
       store.loadMessages(userId, decryptedList)
-    })
+    }
+
+    initializeChatContext()
 
     return () => store.setActiveChat(null)
-  }, [userId, me?.id, store, decryptBody])
+  }, [userId, me?.id, decryptBody]) // Removed 'store' dependency to prevent recursive rerenders
 
   // ── Mark read ────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -141,13 +148,12 @@ export default function ChatRoom() {
     }, 2000)
   }
 
-  // ── Send message (Asymmetrical Crypto Cipher Payload Conversion) ─────────
+  // ── Send message ─────────────────────────────────────────────────────────
   const handleSend = async () => {
     const text = input.trim()
     if (!text) return
     let body = text
 
-    // Encrypt if locally provisioned asymmetric keys exist
     if (hasPrivateKey()) {
       const receiverPublicKey = await getPublicKey(userId)
       if (receiverPublicKey) {
@@ -195,6 +201,32 @@ export default function ChatRoom() {
     send('delete', { message_id: messageId, other_user_id: userId })
   }
 
+  const [isOnlineConn, setIsOnlineConn] = useState(navigator.onLine)
+
+  useEffect(() => {
+    const up   = () => setIsOnlineConn(true)
+    const down = () => setIsOnlineConn(false)
+    window.addEventListener('online',  up)
+    window.addEventListener('offline', down)
+    return () => {
+      window.removeEventListener('online',  up)
+      window.removeEventListener('offline', down)
+    }
+  }, [])
+
+  // Flush queue when coming back online
+  useEffect(() => {
+    if (!isOnlineConn) return
+    const flush = async () => {
+      const items = await dequeue()
+      for (const item of items) {
+        send(item.type, item.payload)
+        await removeFromQueue(item.id)
+      }
+    }
+    flush()
+  }, [isOnlineConn, send])
+
   return (
     <div className="flex flex-col h-screen bg-gray-50">
 
@@ -221,7 +253,7 @@ export default function ChatRoom() {
         </div>
       </div>
 
-      {/* Messages Viewport Container — Custom Preferences Styled */}
+      {/* Messages Viewport Container */}
       <div
         className={`flex-1 overflow-y-auto px-4 py-4 space-y-0.5 ${fontClass}`}
         style={bgStyle}

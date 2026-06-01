@@ -3,13 +3,13 @@ from logging.config import fileConfig
 
 from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import async_engine_from_config
-
 from alembic import context
 
 # 1. Import your central configuration and the shared Base
 from app.config import settings
 from app.db.database import Base  # Your central SQLAlchemy declarative base
 from app.models import user, message, reaction, media
+from app.models import user, message, reaction, media, push_subscription
 
 # 2. Import your models explicitly here so they register with the central Base metadata!
 from app.models import user, message, media 
